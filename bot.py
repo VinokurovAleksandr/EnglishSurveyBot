@@ -19,6 +19,8 @@ TOKEN = os.getenv("TOKEN")
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+
+
 # Увімкнення логування
 logging.basicConfig(level=logging.INFO)
 
