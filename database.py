@@ -2,13 +2,21 @@ import sqlite3
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
+
 # Ініціалізація Google Sheets API
-SHEET_ID = "1nm3YVan5Xv2k-tRu_DFl7fpqiIMHURv0cTlYiDO3OFA"  # Вставте ID Google-таблиці
+SHEET_ID = os.getenv("SHEET_ID")  # Вставте ID Google-таблиці
 
 def connect_google_sheets():
     """Підключення до Google Sheets API"""
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS, scope)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SHEET_ID).sheet1  # Використовуємо перший лист
     return sheet

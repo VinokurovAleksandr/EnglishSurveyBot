@@ -5,8 +5,15 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 from database import save_response, save_to_google_sheets, create_db
 
+import os
+from dotenv import load_dotenv
+
+
+# Завантажуємо змінні середовища з .env
+load_dotenv()
+
 # Вставте свій API токен Telegram-бота
-TOKEN = "7562418782:AAEtxHrVV4D72Uyk-P-aHmsuJ8-c5xyisao"
+TOKEN = os.getenv("TOKEN")
 
 # Ініціалізація бота та диспетчера
 bot = Bot(token=TOKEN)
