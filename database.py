@@ -1,30 +1,34 @@
 import sqlite3
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-
+import json
 import os
 from dotenv import load_dotenv
 
+# Завантажуємо змінні середовища
 load_dotenv()
 
-
+# Отримуємо облікові дані Google з .env
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
-
-# Ініціалізація Google Sheets API
-SHEET_ID = os.getenv("SHEET_ID")  # Вставте ID Google-таблиці
+SHEET_ID = os.getenv("SHEET_ID")
 
 def connect_google_sheets():
     """Підключення до Google Sheets API"""
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS, scope)
+    
+    # Декодуємо JSON-ключ напряму з .env
+    creds_dict = json.loads(GOOGLE_CREDENTIALS)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SHEET_ID).sheet1  # Використовуємо перший лист
     return sheet
 
 def create_db():
-    """Створює локальну базу даних SQLite"""
+    """Створює або оновлює локальну базу даних SQLite"""
     conn = sqlite3.connect("survey.db")
     cursor = conn.cursor()
+    
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS responses (
         user_id INTEGER PRIMARY KEY,
@@ -40,6 +44,7 @@ def create_db():
         favorites TEXT
     )
     """)
+    
     conn.commit()
     conn.close()
 
@@ -48,6 +53,7 @@ def save_response(user_id, column, answer):
     conn = sqlite3.connect("survey.db")
     cursor = conn.cursor()
 
+    # Перевіряємо, чи є вже запис для цього користувача
     cursor.execute("SELECT * FROM responses WHERE user_id=?", (user_id,))
     existing_entry = cursor.fetchone()
 
@@ -69,6 +75,13 @@ def save_to_google_sheets(user_id):
 
     if data:
         sheet = connect_google_sheets()
+        
+        # Додаємо заголовки, якщо це перший запис
+        if len(sheet.get_all_values()) == 0:
+            headers = ["User ID", "Full Name", "Reason", "Obstacle", "Future Use", 
+                       "Interest", "Format", "Pace", "Hobbies", "Daily Use", "Favorites"]
+            sheet.append_row(headers)
+        
         sheet.append_row(data)  # Додає рядок до таблиці
 
     conn.close()

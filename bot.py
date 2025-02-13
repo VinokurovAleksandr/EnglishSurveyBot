@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from database import save_response, save_to_google_sheets, create_db
 
@@ -27,15 +27,28 @@ logging.basicConfig(level=logging.INFO)
 # Створюємо базу даних перед запуском
 create_db()
 
-# Питання для опитування (додано питання "Ваше ім'я та прізвище?")
+def create_inline_keyboard(options, callback_prefix):
+    """Створює inline-клавіатуру з варіантами відповідей"""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=option, callback_data=f"{callback_prefix}:{option}")]
+            for option in options
+        ]
+    )
+    return keyboard
+
+# 📌 **Питання для опитування**
 questions = [
     ("full_name", "Ваше ім'я та прізвище?"),
     ("reason", "Чому ви вирішили вивчати англійську саме зараз?"),
     ("obstacle", "Що для вас є найбільшою перешкодою у вивченні англійської?"),
     ("future_use", "Як ви плануєте використовувати свої знання англійської мови в майбутньому?"),
-    ("interest", "Які аспекти англійської мови вас цікавлять найбільше: граматика, розмовна мова, бізнес-англійська, підготовка до іспитів тощо?"),
-    ("format", "Який формат навчання вам більше підходить: індивідуальні заняття, групові заняття?"),
-    ("pace", "Який темп навчання для вас найбільш комфортний: 2 рази на тиждень, 3, 1, мікро-навчання?"),
+    ("interest", "Які аспекти англійської мови вас цікавлять найбільше?", 
+        create_inline_keyboard(["Граматика", "Розмовна мова", "Бізнес-англійська", "Підготовка до іспитів"], "interest")),
+    ("format", "Який формат навчання вам більше підходить?", 
+        create_inline_keyboard(["Індивідуальні заняття", "Групові заняття", "Заняття в парі"], "format")),
+    ("pace", "Який темп навчання для вас найбільш комфортний?", 
+        create_inline_keyboard(["1 раз на тиждень", "2 рази на тиждень", "3 рази на тиждень", "Мікро-навчання"], "pace")),
     ("hobbies", "Які у вас хобі та інтереси?"),
     ("daily_use", "Як часто ви використовуєте англійську мову в повсякденному житті?"),
     ("favorites", "Які ваші улюблені фільми, книги, музика англійською мовою?")
@@ -56,7 +69,15 @@ async def ask_question(user_id, message):
     """Надсилає наступне питання користувачеві"""
     index = user_states[user_id]
     if index < len(questions):
-        await message.answer(questions[index][1])  # Надсилаємо текст питання
+        question = questions[index]
+        column = question[0]
+        text = question[1]
+        keyboard = question[2] if len(question) > 2 else None  # Використовуємо клавіатуру, якщо вона є
+
+        if keyboard:
+            await message.answer(text, reply_markup=keyboard)
+        else:
+            await message.answer(text)
     else:
         await message.answer("Дякую за ваші відповіді! Ми збережемо вашу інформацію.")
         save_to_google_sheets(user_id)  # Зберігаємо в Google Sheets
@@ -73,6 +94,25 @@ async def handle_response(message: types.Message):
         user_states[user_id] += 1  # Переходимо до наступного питання
         await ask_question(user_id, message)  # Надсилаємо наступне питання
 
+@dp.callback_query()
+async def handle_inline_response(callback_query: types.CallbackQuery):
+    """Обробляє вибір користувача з inline-кнопок"""
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split(":")
+    column, answer = data[0], data[1]  # Витягуємо колонку і відповідь
+    
+    if user_id in user_states:
+        index = user_states[user_id]
+        expected_column = questions[index][0]
+
+        if column == expected_column:  # Переконуємося, що це правильне питання
+            save_response(user_id, column, answer)  # Зберігаємо відповідь
+            user_states[user_id] += 1  # Переходимо до наступного питання
+            await callback_query.message.edit_text(f"✅ Ваша відповідь: {answer}")  # Оновлюємо повідомлення
+            await ask_question(user_id, callback_query.message)  # Надсилаємо наступне питання
+
+    await callback_query.answer()  # Закриваємо повідомлення про натискання кнопки
+
 async def main():
     """Головна асинхронна функція для запуску бота"""
     await dp.start_polling(bot)
@@ -80,5 +120,4 @@ async def main():
 # Запускаємо бота
 if __name__ == "__main__":
     asyncio.run(main())
-
-
+    
